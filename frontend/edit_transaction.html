@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Редактировать транзакцию</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    h1 { text-align: center; }
+    label { display: block; margin-top: 10px; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 20px; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+    #save-btn { background-color: #ffc107; color: #333; }
+    #cancel { background: #ddd; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Редактирование транзакции</h1>
+
+  <form id="edit-form">
+    <label>Тип лица
+      <select name="person_type" id="person_type" required>
+        <option value="Физическое лицо">Физическое лицо</option>
+        <option value="Юридическое лицо">Юридическое лицо</option>
+      </select>
+    </label>
+
+    <label>Дата и время
+      <input type="datetime-local" name="date_time" id="date_time" required>
+    </label>
+
+    <label>Тип транзакции
+      <select name="transaction_type" id="transaction_type" required>
+        <option value="Поступление">Поступление</option>
+        <option value="Списание">Списание</option>
+      </select>
+    </label>
+
+    <label>Комментарий
+      <input type="text" name="comment" id="comment">
+    </label>
+
+    <label>Сумма
+      <input type="number" step="0.00001" name="amount" id="amount" required>
+    </label>
+
+    <label>Статус
+      <select name="status" id="status" required>
+        <option value="Новая">Новая</option>
+        <option value="Подтвержденная">Подтвержденная</option>
+        <option value="В обработке">В обработке</option>
+        <option value="Отменена">Отменена</option>
+        <option value="Платеж выполнен">Платеж выполнен</option>
+        <option value="Платеж удален">Платеж удален</option>
+        <option value="Возврат">Возврат</option>
+      </select>
+    </label>
+
+    <label>Банк отправителя
+      <input type="text" name="sender_bank" id="sender_bank">
+    </label>
+
+    <label>Счет отправителя
+      <input type="text" name="sender_account" id="sender_account">
+    </label>
+
+    <label>Банк получателя
+      <input type="text" name="recipient_bank" id="recipient_bank">
+    </label>
+
+    <label>ИНН получателя
+      <input type="text" name="recipient_inn" id="recipient_inn" pattern="^\d{10,11}$" required>
+    </label>
+
+    <label>Счет получателя
+      <input type="text" name="recipient_account" id="recipient_account">
+    </label>
+
+    <label>Категория
+      <input type="text" name="category" id="category">
+    </label>
+
+    <label>Телефон получателя
+      <input type="text" name="recipient_phone" id="recipient_phone"
+             placeholder="+7XXXXXXXXXX или 8XXXXXXXXXX">
+    </label>
+
+    <button type="submit" id="save-btn">Сохранить</button>
+    <button type="button" id="cancel">Отмена</button>
+  </form>
+
+  <script>
+    const API_URL = 'http://127.0.0.1:8000';
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      window.location.href = '/auth';
+    }
+
+    // статусы, при которых редактирование запрещено
+    const NON_EDITABLE = [
+      "Подтвержденная",
+      "В обработке",
+      "Отменена",
+      "Платеж выполнен",
+      "Платеж удален",
+      "Возврат"
+    ];
+
+    // получаем ID транзакции из URL: /edit_transaction/42
+    const parts = window.location.pathname.split('/');
+    const transactionId = parts[parts.length - 1];
+
+    const form = document.getElementById('edit-form');
+    const cancelBtn = document.getElementById('cancel');
+
+    // кнопка «Отмена»
+    cancelBtn.addEventListener('click', () => {
+      window.location.href = '/transactions_page';
+    });
+
+    // загружаем данные транзакции
+    fetch(`${API_URL}/transactions/${transactionId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Не удалось загрузить данные');
+      return res.json();
+    })
+    .then(tx => {
+      // если статус в списке запрещённых — редиректим обратно
+      if (NON_EDITABLE.includes(tx.status)) {
+        alert(`Редактирование невозможно: статус "${tx.status}"`);
+        return window.location.href = '/transactions_page';
+      }
+
+      // иначе заполняем форму
+      document.getElementById('person_type').value        = tx.person_type;
+      document.getElementById('date_time').value          = tx.date_time.slice(0,16);
+      document.getElementById('transaction_type').value   = tx.transaction_type;
+      document.getElementById('comment').value            = tx.comment || '';
+      document.getElementById('amount').value             = tx.amount;
+      document.getElementById('status').value             = tx.status;
+      document.getElementById('sender_bank').value        = tx.sender_bank || '';
+      document.getElementById('sender_account').value     = tx.sender_account || '';
+      document.getElementById('recipient_bank').value     = tx.recipient_bank || '';
+      document.getElementById('recipient_inn').value      = tx.recipient_inn;
+      document.getElementById('recipient_account').value  = tx.recipient_account || '';
+      document.getElementById('category').value           = tx.category || '';
+      document.getElementById('recipient_phone').value    = tx.recipient_phone || '';
+    })
+    .catch(err => {
+      alert('Ошибка: ' + err.message);
+      window.location.href = '/transactions_page';
+    });
+
+    // отправка изменений
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form).entries());
+
+      const res = await fetch(`${API_URL}/transactions/${transactionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        alert('Транзакция сохранена');
+        window.location.href = '/transactions_page';
+      } else {
+        const err = await res.json();
+        alert('Ошибка: ' + (err.detail || res.status));
+      }
+    });
+  </script>
+</body>
+</html>

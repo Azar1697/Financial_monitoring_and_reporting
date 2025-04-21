@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Дашборд финансового мониторинга</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ---- базовая вёрстка ---- */
+    body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;margin:0;padding:20px}
+    .container{max-width:1200px;margin:auto}
+    h1{margin:0 0 20px;text-align:center}
+
+    /* ---- верхняя навигация ---- */
+    .top-nav{display:flex;justify-content:center;margin-bottom:18px}
+    .btn{cursor:pointer;border:none;border-radius:4px;padding:8px 16px;font-weight:bold;color:#fff}
+    .home-btn{background:#17a2b8}        /* бирюзовая кнопка «домой» */
+
+    /* ---- фильтры ---- */
+    .filter-panel{background:#fff;padding:15px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.08);margin-bottom:30px}
+    .filter-fields{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between}
+    .filter-fields label{display:flex;flex-direction:column;flex:1 1 150px;font-size:14px}
+    .filter-fields input,.filter-fields select{margin-top:4px;padding:6px;border:1px solid #ccc;border-radius:4px}
+    .filter-buttons{display:flex;gap:12px;justify-content:center;margin-top:10px}
+    .apply-btn{background:#007bff}
+    .clear-btn{background:#6c757d}
+    .report-btn{background:#28a745}
+
+    /* ---- графики ---- */
+    .charts{display:flex;flex-wrap:wrap;gap:30px;justify-content:center}
+    .chart-container{width:350px;height:350px;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.08);display:flex;flex-direction:column}
+    .chart-container h3{margin:0 0 6px;text-align:center;font-size:16px}
+    .chart-container canvas{flex:1 1 auto}
+
+    /* ---- модалка ---- */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:1000}
+    .modal.active{display:flex}
+    .modal-box{background:#fff;padding:24px 28px;border-radius:8px;width:320px;box-shadow:0 4px 12px rgba(0,0,0,.15);display:flex;flex-direction:column;gap:12px}
+    .modal-box h2{margin:0 0 6px;font-size:18px;text-align:center}
+    .modal-box label{font-size:14px;display:flex;flex-direction:column;gap:4px}
+    .modal-box select,.modal-box input{padding:6px;border:1px solid #ccc;border-radius:4px}
+    .modal-actions{display:flex;gap:10px;justify-content:center;margin-top:6px}
+    .close-btn{background:#dc3545}
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Дашборд финансового мониторинга</h1>
+
+  <!-- ====== КНОПКА ГЛАВНАЯ ====== -->
+  <div class="top-nav">
+    <button class="btn home-btn" onclick="location.href='/'">🏠 Главная</button>
+  </div>
+
+  <!-- ====== ПАНЕЛЬ ФИЛЬТРОВ ====== -->
+  <div class="filter-panel">
+    <div class="filter-fields">
+      <label>Дата от <input type="date" id="f-start"></label>
+      <label>Дата до <input type="date" id="f-end"></label>
+      <label>Статус
+        <select id="f-status"><option value="">Все</option><option>Новая</option><option>Подтвержденная</option>
+          <option>В обработке</option><option>Отменена</option><option>Платеж выполнен</option>
+          <option>Платеж удален</option><option>Возврат</option></select></label>
+      <label>Тип
+        <select id="f-type"><option value="">Все</option><option>Поступление</option><option>Списание</option></select></label>
+      <label>Мин. сумма <input type="number" step="0.01" id="f-min" placeholder="0"></label>
+      <label>Макс. сумма <input type="number" step="0.01" id="f-max" placeholder="0"></label>
+      <label>Категория <input type="text" id="f-cat" placeholder="Любая"></label>
+      <label>Банк отп. <input type="text" id="f-sbank" placeholder="Любой"></label>
+      <label>Банк получ. <input type="text" id="f-rbank" placeholder="Любой"></label>
+      <label>ИНН получ. <input type="text" id="f-inn" pattern="\d{10,11}" placeholder="10‑11 цифр"></label>
+    </div>
+    <div class="filter-buttons">
+      <button class="btn apply-btn"  id="btn-apply">Применить</button>
+      <button class="btn clear-btn"  id="btn-clear">Сбросить</button>
+      <button class="btn report-btn" id="btn-report">Скачать отчёт</button>
+    </div>
+  </div>
+
+  <!-- ====== ЧАРТЫ ====== -->
+  <div class="charts">
+    <div class="chart-container"><h3>Ежемесячное&nbsp;кол‑во</h3><canvas id="c-month"></canvas></div>
+    <div class="chart-container"><h3>По&nbsp;типу</h3><canvas id="c-type"></canvas></div>
+    <div class="chart-container"><h3>Доходы vs Расходы</h3><canvas id="c-sum"></canvas></div>
+    <div class="chart-container"><h3>По&nbsp;статусам</h3><canvas id="c-status"></canvas></div>
+    <div class="chart-container"><h3>Банки&nbsp;отправителя</h3><canvas id="c-sender"></canvas></div>
+    <div class="chart-container"><h3>Банки&nbsp;получателя</h3><canvas id="c-recipient"></canvas></div>
+    <div class="chart-container"><h3>По&nbsp;категориям</h3><canvas id="c-cat"></canvas></div>
+  </div>
+</div>
+
+<!-- ====== МОДАЛКА ОТЧЁТА ====== -->
+<div class="modal" id="report-modal">
+  <div class="modal-box">
+    <h2>Сформировать отчёт</h2>
+    <label>Дата от <input type="date" id="r-start"></label>
+    <label>Дата до <input type="date" id="r-end"></label>
+    <label>Формат
+      <select id="r-format"><option value="pdf">PDF</option><option value="xlsx">Excel</option></select>
+    </label>
+    <div class="modal-actions">
+      <button class="btn apply-btn" id="r-download">Скачать</button>
+      <button class="btn close-btn" id="r-close">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Chart.js настройки ---------- */
+Chart.defaults.font.family = 'Arial, Helvetica, sans-serif';
+Chart.defaults.plugins.legend.position = 'bottom';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+const COLORS = ['#4e79a7','#f28e2c','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7'];
+
+const API    = 'http://127.0.0.1:8000';
+const token  = localStorage.getItem('access_token');
+if (!token) location = '/auth';
+
+/* ---------- ссылки на графики ---------- */
+let gMonth,gType,gSum,gStatus,gSender,gRecipient,gCat;
+
+/* ---------- Кнопки фильтра и отчёта ---------- */
+document.getElementById('btn-apply').onclick  = loadAll;
+document.getElementById('btn-clear').onclick  = ()=>{document.querySelectorAll('.filter-fields input,.filter-fields select').forEach(el=>el.value='');loadAll();};
+document.getElementById('btn-report').onclick = ()=> document.getElementById('report-modal').classList.add('active');
+document.getElementById('r-close').onclick    = ()=> document.getElementById('report-modal').classList.remove('active');
+document.getElementById('r-download').onclick = downloadReport;
+
+/* ---------- утилиты ---------- */
+function qs(id){return document.getElementById(id).value;}
+function buildChart(old,ctx,cfg){ if(old) old.destroy(); return new Chart(ctx,cfg); }
+function barCfg(labels,data,label){return{type:'bar',data:{labels,datasets:[{label,data,backgroundColor:COLORS}]},
+  options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}};}
+function doughnutCfg(labels,data){return{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:COLORS,borderColor:'#fff',borderWidth:2}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'42%'}};}
+
+/* ---------- основная загрузка ---------- */
+async function loadAll(){
+  const p = new URLSearchParams();
+  const map = {'start_date':'f-start','end_date':'f-end','status':'f-status','transaction_type':'f-type',
+               'min_amount':'f-min','max_amount':'f-max','category':'f-cat',
+               'sender_bank':'f-sbank','recipient_bank':'f-rbank','recipient_inn':'f-inn'};
+  for(const [key,id] of Object.entries(map)){ const val = qs(id); if(val) p.set(key,val); }
+
+  /* статистика */
+  const st = await fetch(`${API}/transactions/stats?${p}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+
+  gMonth     = buildChart(gMonth,document.getElementById('c-month'),
+                barCfg(st.monthly.map(d=>new Date(d.period).toLocaleString('ru',{month:'short',year:'numeric'})),
+                       st.monthly.map(d=>d.count),'Транзакции'));
+
+  gType      = buildChart(gType,document.getElementById('c-type'),
+                doughnutCfg(st.by_type.map(d=>d.type),st.by_type.map(d=>d.count)));
+
+  gSum       = buildChart(gSum,document.getElementById('c-sum'),
+                barCfg(['Доходы','Расходы'],[st.sums.income,st.sums.expense],'₽'));
+
+  gStatus    = buildChart(gStatus,document.getElementById('c-status'),
+                doughnutCfg(st.by_status.map(d=>d.status),st.by_status.map(d=>d.count)));
+
+  gSender    = buildChart(gSender,document.getElementById('c-sender'),
+                barCfg(st.by_sender_bank.map(d=>d.bank||'—'),st.by_sender_bank.map(d=>d.count),'Транзакции'));
+
+  gRecipient = buildChart(gRecipient,document.getElementById('c-recipient'),
+                barCfg(st.by_recipient_bank.map(d=>d.bank||'—'),st.by_recipient_bank.map(d=>d.count),'Транзакции'));
+
+  /* категории – отдельный запрос */
+  const list = await fetch(`${API}/transactions/?${p}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+  const cats={}; list.forEach(t=>{const c=t.category||'Без категории'; cats[c]=(cats[c]||0)+1;});
+  gCat = buildChart(gCat,document.getElementById('c-cat'),doughnutCfg(Object.keys(cats),Object.values(cats)));
+}
+
+/* ---------- скачать отчёт ---------- */
+async function downloadReport(){
+  const modal = document.getElementById('report-modal');
+  const params = new URLSearchParams();
+
+  /* собираем фильтры из панели */
+  const filterIds = {'start_date':'f-start','end_date':'f-end','status':'f-status','transaction_type':'f-type',
+                     'min_amount':'f-min','max_amount':'f-max','category':'f-cat',
+                     'sender_bank':'f-sbank','recipient_bank':'f-rbank','recipient_inn':'f-inn'};
+  for(const [k,id] of Object.entries(filterIds)){ const v=qs(id); if(v) params.set(k,v); }
+
+  /* + дата/формат из модалки */
+  if(qs('r-start')) params.set('start_date',qs('r-start'));
+  if(qs('r-end'))   params.set('end_date',qs('r-end'));
+  params.set('format',qs('r-format'));
+
+  const res = await fetch(`${API}/reports?${params}`,{headers:{Authorization:`Bearer ${token}`}});
+
+  if(!res.ok){ alert('Не удалось сформировать отчёт'); return; }
+
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `report.${params.get('format')==='xlsx'?'xlsx':'pdf'}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  modal.classList.remove('active');
+}
+
+/* ---------- старт ---------- */
+loadAll();
+</script>
+</body>
+</html>

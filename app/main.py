@@ -9,7 +9,7 @@ from app.db.session import SessionLocal
 from app.services.auth import get_user_by_email
 from app.utils.security import verify_token
 from app.api import transactions
-
+from app.api import reports
 
 app = FastAPI()
 
@@ -31,7 +31,7 @@ app.include_router(transactions.router, prefix="/transactions", tags=["Transacti
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
-
+app.include_router(reports.router, tags=["Reports"])
 @app.get("/")
 async def root():
     return FileResponse("frontend/index.html")
@@ -71,3 +71,15 @@ def get_profile(token: str = Depends(oauth2_scheme)):
         return {"email": user.email}
     except Exception:
         raise HTTPException(status_code=403, detail="Invalid token or not authenticated")
+
+@app.get("/edit_transaction/{transaction_id}", response_class=FileResponse)
+async def edit_transaction_page(transaction_id: int):
+    """
+    HTML‑страница с формой редактирования.
+    Доступна по URL: /edit_transaction/42
+    """
+    return FileResponse("frontend/edit_transaction.html")
+
+@app.get("/dashboard", response_class=FileResponse)
+async def dashboard_page():
+    return FileResponse("frontend/dashboard.html")
