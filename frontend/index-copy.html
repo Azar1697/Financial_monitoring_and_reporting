@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Финансовый дашборд</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .stat {
+      flex: 1;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+    .nav {
+      margin: 30px 0;
+      text-align: center;
+    }
+    .nav button {
+      padding: 10px 20px;
+      margin: 5px;
+      background: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #logout {
+      float: right;
+      background: crimson;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Финансовый мониторинг <button id="logout">Выйти</button></h1>
+    <p id="welcome-message">Привет, пользователь</p>
+
+    <div class="stats">
+      <div class="stat">
+        <h3>Доходы</h3>
+        <p id="income-total">—</p>
+      </div>
+      <div class="stat">
+        <h3>Расходы</h3>
+        <p id="expense-total">—</p>
+      </div>
+      <div class="stat">
+        <h3>Всего транзакций</h3>
+        <p id="transaction-count">—</p>
+      </div>
+    </div>
+
+    <canvas id="transactionChart" height="120"></canvas>
+
+    <div class="nav">
+      <button onclick="location.href='/transactions'">Все транзакции</button>
+      <button onclick="location.href='/add_transaction'">Добавить</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://127.0.0.1:8000";
+    const token = localStorage.getItem("access_token");
+
+    console.log("🔑 Токен из localStorage:", token);
+
+    if (!token) {
+      console.warn("❌ Нет токена — редирект на /auth");
+      window.location.href = "/auth";
+    }
+
+    document.getElementById("logout").addEventListener("click", () => {
+      localStorage.removeItem("access_token");
+      window.location.href = "/auth";
+    });
+
+    // Получение профиля
+    fetch(`${API_URL}/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Ошибка авторизации");
+      return res.json();
+    })
+    .then(data => {
+      console.log("✅ Пользователь:", data);
+      document.getElementById("welcome-message").textContent = `Привет, ${data.email}`;
+    })
+    .catch(err => {
+      console.error("❌ Ошибка при получении профиля:", err);
+      localStorage.removeItem("access_token");
+      window.location.href = "/auth";
+    });
+
+    // Получение транзакций
+    fetch(`${API_URL}/transactions`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Ошибка получения транзакций");
+      return res.json();
+    })
+    .then(data => {
+      let income = 0, expense = 0;
+      const monthly = {};
+
+      data.forEach(tx => {
+        const month = new Date(tx.date_time).toLocaleString("ru", { month: "short" });
+        if (!monthly[month]) monthly[month] = { income: 0, expense: 0 };
+
+        if (tx.transaction_type === "Поступление") {
+          income += tx.amount;
+          monthly[month].income += tx.amount;
+        } else {
+          expense += tx.amount;
+          monthly[month].expense += tx.amount;
+        }
+      });
+
+      document.getElementById("income-total").textContent = `${income.toFixed(2)} ₽`;
+      document.getElementById("expense-total").textContent = `${expense.toFixed(2)} ₽`;
+      document.getElementById("transaction-count").textContent = data.length;
+
+      const labels = Object.keys(monthly);
+      const incomeData = labels.map(m => monthly[m].income);
+      const expenseData = labels.map(m => monthly[m].expense);
+
+      new Chart(document.getElementById("transactionChart"), {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Доходы",
+              data: incomeData,
+              backgroundColor: "rgba(75, 192, 192, 0.6)"
+            },
+            {
+              label: "Расходы",
+              data: expenseData,
+              backgroundColor: "rgba(255, 99, 132, 0.6)"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    })
+    .catch(err => {
+      console.error("❌ Ошибка при загрузке транзакций:", err);
+    });
+  </script>
+</body>
+</html>
+

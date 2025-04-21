@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Добавить транзакцию</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Добавить транзакцию</h1>
+
+  <form id="transaction-form">
+    <label>Тип лица
+      <select name="person_type" required>
+        <option value="Физическое лицо">Физическое лицо</option>
+        <option value="Юридическое лицо">Юридическое лицо</option>
+      </select>
+    </label>
+
+    <label>Дата и время
+      <input type="datetime-local" name="date_time" required>
+    </label>
+
+    <label>Тип транзакции
+      <select name="transaction_type" required>
+        <option value="Поступление">Поступление</option>
+        <option value="Списание">Списание</option>
+      </select>
+    </label>
+
+    <label>Комментарий
+      <input type="text" name="comment">
+    </label>
+
+    <label>Сумма
+      <input type="number" step="0.00001" name="amount" required>
+    </label>
+
+    <label>Статус
+      <select name="status" required>
+        <option value="Новая">Новая</option>
+        <option value="Подтвержденная">Подтвержденная</option>
+        <option value="В обработке">В обработке</option>
+        <option value="Отменена">Отменена</option>
+        <option value="Платеж выполнен">Платеж выполнен</option>
+        <option value="Платеж удален">Платеж удален</option>
+        <option value="Возврат">Возврат</option>
+      </select>
+    </label>
+
+    <label>Банк отправителя
+      <input type="text" name="sender_bank">
+    </label>
+
+    <label>Счет отправителя
+      <input type="text" name="sender_account">
+    </label>
+
+    <label>Банк получателя
+      <input type="text" name="recipient_bank">
+    </label>
+
+    <label>ИНН получателя
+      <input type="text" name="recipient_inn" pattern="^\d{10,11}$" required>
+    </label>
+
+    <label>Счет получателя
+      <input type="text" name="recipient_account">
+    </label>
+
+    <label>Категория
+      <input type="text" name="category">
+    </label>
+
+    <label>Телефон получателя
+      <input type="text" name="recipient_phone" placeholder="+7XXXXXXXXXX или 8XXXXXXXXXX">
+    </label>
+
+    <button type="submit">Создать</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('transaction-form');
+    const API_URL = 'http://127.0.0.1:8000';
+    const token = localStorage.getItem('access_token');
+
+    if (!token) {
+      window.location.href = '/login';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+
+      const response = await fetch(`${API_URL}/transactions/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        alert('Транзакция добавлена!');
+        window.location.href = '/transactions';
+      } else {
+        const res = await response.json();
+        alert('Ошибка: ' + (res.detail || 'Не удалось добавить транзакцию.'));
+      }
+    });
+  </script>
+</body>
+</html>

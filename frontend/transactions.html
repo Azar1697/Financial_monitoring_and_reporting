@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Мои транзакции</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .top-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .top-buttons button {
+      padding: 8px 16px;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .home-btn {
+      background-color: #007bff;
+      color: white;
+    }
+    .add-btn {
+      background-color: #28a745;
+      color: white;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background-color: #fff;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    th {
+      background-color: #eee;
+    }
+    .edit-btn {
+      background-color: #ffc107;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .delete-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Мои транзакции</h1>
+
+  <div class="top-buttons">
+    <button class="home-btn" onclick="window.location.href='/'">🏠 Главная страница</button>
+    <button class="add-btn" onclick="window.location.href='/add_transaction'">➕ Добавить транзакцию</button>
+  </div>
+
+  <table id="transactions-table">
+    <thead>
+      <tr>
+        <th>№</th>
+        <th>Тип</th>
+        <th>Категория</th>
+        <th>Сумма</th>
+        <th>Дата</th>
+        <th>Статус</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API_URL = 'http://127.0.0.1:8000';
+    const token = localStorage.getItem('access_token');
+
+    if (!token) {
+      window.location.href = '/auth';
+    }
+
+    async function fetchTransactions() {
+      const response = await fetch(`${API_URL}/transactions/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        console.error('Ошибка загрузки транзакций, статус:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      const tbody = document.querySelector('#transactions-table tbody');
+      tbody.innerHTML = '';
+
+      // Обязательно использовать два параметра в forEach: (tx, idx)
+      data.forEach((tx, idx) => {
+        const displayIdx = idx + 1;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${displayIdx}</td>
+          <td>${tx.transaction_type}</td>
+          <td>${tx.category || '-'}</td>
+          <td>${tx.amount}</td>
+          <td>${new Date(tx.date_time).toLocaleString()}</td>
+          <td>${tx.status}</td>
+          <td>
+            <button class="edit-btn" onclick="editTransaction(${tx.id})">Редактировать</button>
+            <button class="delete-btn" onclick="deleteTransaction(${tx.id})">Удалить</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function editTransaction(id) {
+      alert('Редактирование пока не реализовано.');
+    }
+
+    async function deleteTransaction(id) {
+      if (!confirm(`Удалить транзакцию №${id}?`)) return;
+
+      const res = await fetch(`${API_URL}/transactions/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        fetchTransactions();
+      } else {
+        alert('Ошибка при удалении');
+      }
+    }
+
+    // при загрузке страницы
+    fetchTransactions();
+  </script>
+</body>
+</html>
