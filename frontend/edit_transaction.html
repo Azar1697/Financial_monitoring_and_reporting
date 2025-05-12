@@ -2,14 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Редактировать транзакцию</title>
+  <title>Редактирование транзакции</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
     h1 { text-align: center; }
     label { display: block; margin-top: 10px; }
-    input, select { width: 100%; padding: 8px; margin-top: 5px; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
     button { margin-top: 20px; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-    #save-btn { background-color: #ffc107; color: #333; }
+    #save { background-color: #ffc107; color: #333; }
     #cancel { background: #ddd; margin-left: 10px; }
   </style>
 </head>
@@ -84,79 +84,67 @@
              placeholder="+7XXXXXXXXXX или 8XXXXXXXXXX">
     </label>
 
-    <button type="submit" id="save-btn">Сохранить</button>
+    <button type="submit" id="save">Сохранить</button>
     <button type="button" id="cancel">Отмена</button>
   </form>
 
   <script>
-    const API_URL = 'http://127.0.0.1:8000';
+    const API_URL = 'http://127.0.0.1:8000/edit_transaction';
     const token = localStorage.getItem('access_token');
-    if (!token) {
-      window.location.href = '/auth';
-    }
+    // if (!token) {
+    //   window.location.href = '/auth';
+    // }
 
-    // статусы, при которых редактирование запрещено
-    const NON_EDITABLE = [
-      "Подтвержденная",
-      "В обработке",
-      "Отменена",
-      "Платеж выполнен",
-      "Платеж удален",
-      "Возврат"
-    ];
-
-    // получаем ID транзакции из URL: /edit_transaction/42
+    // id транзакции из URL
     const parts = window.location.pathname.split('/');
     const transactionId = parts[parts.length - 1];
 
-    const form = document.getElementById('edit-form');
-    const cancelBtn = document.getElementById('cancel');
+    // Вспомогательная функция для форматирования даты в datetime-local
+    function toLocalDatetime(iso) {
+      const dt = new Date(iso);
+      const pad = n => String(n).padStart(2, '0');
+      const date = [dt.getFullYear(), pad(dt.getMonth()+1), pad(dt.getDate())].join('-');
+      const time = [pad(dt.getHours()), pad(dt.getMinutes())].join(':');
+      return `${date}T${time}`;
+    }
 
-    // кнопка «Отмена»
-    cancelBtn.addEventListener('click', () => {
-      window.location.href = '/transactions_page';
-    });
-
-    // загружаем данные транзакции
+    // Загрузка данных транзакции и заполнение полей
     fetch(`${API_URL}/transactions/${transactionId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => {
-      if (!res.ok) throw new Error('Не удалось загрузить данные');
+      if (!res.ok) throw new Error('Не удалось загрузить транзакцию');
       return res.json();
     })
     .then(tx => {
-      // если статус в списке запрещённых — редиректим обратно
-      if (NON_EDITABLE.includes(tx.status)) {
-        alert(`Редактирование невозможно: статус "${tx.status}"`);
-        return window.location.href = '/transactions_page';
-      }
-
-      // иначе заполняем форму
-      document.getElementById('person_type').value        = tx.person_type;
-      document.getElementById('date_time').value          = tx.date_time.slice(0,16);
-      document.getElementById('transaction_type').value   = tx.transaction_type;
-      document.getElementById('comment').value            = tx.comment || '';
-      document.getElementById('amount').value             = tx.amount;
-      document.getElementById('status').value             = tx.status;
-      document.getElementById('sender_bank').value        = tx.sender_bank || '';
-      document.getElementById('sender_account').value     = tx.sender_account || '';
-      document.getElementById('recipient_bank').value     = tx.recipient_bank || '';
-      document.getElementById('recipient_inn').value      = tx.recipient_inn;
-      document.getElementById('recipient_account').value  = tx.recipient_account || '';
-      document.getElementById('category').value           = tx.category || '';
-      document.getElementById('recipient_phone').value    = tx.recipient_phone || '';
+      document.getElementById('person_type').value     = tx.person_type;
+      document.getElementById('date_time').value       = toLocalDatetime(tx.date_time);
+      document.getElementById('transaction_type').value= tx.transaction_type;
+      document.getElementById('comment').value          = tx.comment || '';
+      document.getElementById('amount').value           = tx.amount;
+      document.getElementById('status').value           = tx.status;
+      document.getElementById('sender_bank').value      = tx.sender_bank || '';
+      document.getElementById('sender_account').value   = tx.sender_account || '';
+      document.getElementById('recipient_bank').value   = tx.recipient_bank || '';
+      document.getElementById('recipient_inn').value    = tx.recipient_inn;
+      document.getElementById('recipient_account').value= tx.recipient_account || '';
+      document.getElementById('category').value         = tx.category || '';
+      document.getElementById('recipient_phone').value  = tx.recipient_phone || '';
     })
     .catch(err => {
-      alert('Ошибка: ' + err.message);
-      window.location.href = '/transactions_page';
+      alert(err.message);
+      window.location.href = '/transactions';
     });
 
-    // отправка изменений
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(form).entries());
+    // Отмена — возвращаемся на список
+    document.getElementById('cancel').onclick = () => {
+      window.location.href = '/transactions';
+    };
 
+    // Сохранение изменений
+    document.getElementById('edit-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
       const res = await fetch(`${API_URL}/transactions/${transactionId}`, {
         method: 'PUT',
         headers: {
@@ -165,10 +153,9 @@
         },
         body: JSON.stringify(data)
       });
-
       if (res.ok) {
-        alert('Транзакция сохранена');
-        window.location.href = '/transactions_page';
+        alert('Изменения сохранены');
+        window.location.href = '/transactions';
       } else {
         const err = await res.json();
         alert('Ошибка: ' + (err.detail || res.status));
